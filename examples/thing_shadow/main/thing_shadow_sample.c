@@ -35,7 +35,7 @@
 #include "esp_event_loop.h"
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
-#include "driver/sdmmc_host.h"
+//#include "driver/sdmmc_host.h"
 
 #include "nvs.h"
 #include "nvs_flash.h"
@@ -74,7 +74,7 @@ static const char *TAG = "shadow";
 #define ROOMTEMPERATURE_LOWERLIMIT 25.0f
 #define STARTING_ROOMTEMPERATURE ROOMTEMPERATURE_LOWERLIMIT
 
-#define MAX_LENGTH_OF_UPDATE_JSON_BUFFER 200
+#define MAX_LENGTH_OF_UPDATE_JSON_BUFFER 250
 
 /* The examples use simple WiFi configuration that you can set via
    'make menuconfig'.
@@ -194,13 +194,21 @@ void aws_iot_task(void *param) {
     size_t sizeOfJsonDocumentBuffer = sizeof(JsonDocumentBuffer) / sizeof(JsonDocumentBuffer[0]);
     float temperature = 0.0;
 
-    bool windowOpen = false;
+    // bool windowOpen = false;
+    // jsonStruct_t windowActuator;
+    // windowActuator.cb = windowActuate_Callback;
+    // windowActuator.pData = &windowOpen;
+    // windowActuator.pKey = "windowOpen";
+    // windowActuator.type = SHADOW_JSON_BOOL;
+    // windowActuator.dataLength = sizeof(bool);
+
+    char photo_upload_url[] = "https://oldputphotoshere.com";
     jsonStruct_t windowActuator;
     windowActuator.cb = windowActuate_Callback;
-    windowActuator.pData = &windowOpen;
+    windowActuator.pData = &photo_upload_url;
     windowActuator.pKey = "windowOpen";
-    windowActuator.type = SHADOW_JSON_BOOL;
-    windowActuator.dataLength = sizeof(bool);
+    windowActuator.type = SHADOW_JSON_STRING;
+    windowActuator.dataLength = strlen(photo_upload_url);
 
     jsonStruct_t temperatureHandler;
     temperatureHandler.cb = NULL;
@@ -262,8 +270,10 @@ void aws_iot_task(void *param) {
     scp.pMqttClientId = CONFIG_AWS_EXAMPLE_CLIENT_ID;
     scp.mqttClientIdLen = (uint16_t) strlen(CONFIG_AWS_EXAMPLE_CLIENT_ID);
 
-    ESP_LOGI(TAG, "Shadow Connect");
+    ESP_LOGI(TAG, "Shadow Connect, Thing: %s, Client ID: %s, heap size: %d ", scp.pMyThingName, scp.pMqttClientId, esp_get_free_heap_size());
     rc = aws_iot_shadow_connect(&mqttClient, &scp);
+    ESP_LOGI(TAG, "Done connecting, heap size: %d ", esp_get_free_heap_size());
+
     if(SUCCESS != rc) {
         ESP_LOGE(TAG, "aws_iot_shadow_connect returned error %d, aborting...", rc);
         abort();
@@ -297,7 +307,8 @@ void aws_iot_task(void *param) {
             continue;
         }
         ESP_LOGI(TAG, "=======================================================================================");
-        ESP_LOGI(TAG, "On Device: window state %s", windowOpen ? "true" : "false");
+        //ESP_LOGI(TAG, "On Device: window state %s", windowOpen ? "true" : "false");
+        ESP_LOGI(TAG, "On Device: window state %s", photo_upload_url);
         simulateRoomTemperature(&temperature);
 
         rc = aws_iot_shadow_init_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer);
@@ -309,7 +320,7 @@ void aws_iot_task(void *param) {
                 if(SUCCESS == rc) {
                     ESP_LOGI(TAG, "Update Shadow: %s", JsonDocumentBuffer);
                     rc = aws_iot_shadow_update(&mqttClient, CONFIG_AWS_EXAMPLE_THING_NAME, JsonDocumentBuffer,
-                                               ShadowUpdateStatusCallback, NULL, 4, true);
+                                               ShadowUpdateStatusCallback, NULL, 14, true);
                     shadowUpdateInProgress = true;
                 }
             }
@@ -317,7 +328,7 @@ void aws_iot_task(void *param) {
         ESP_LOGI(TAG, "*****************************************************************************************");
         ESP_LOGI(TAG, "Stack remaining for task '%s' is %d bytes", pcTaskGetTaskName(NULL), uxTaskGetStackHighWaterMark(NULL));
 
-        vTaskDelay(1000 / portTICK_RATE_MS);
+        vTaskDelay(10*1000 / portTICK_RATE_MS);
     }
 
     if(SUCCESS != rc) {
@@ -366,5 +377,6 @@ void app_main()
 
     initialise_wifi();
     /* Temporarily pin task to core, due to FPU uncertainty */
-    xTaskCreatePinnedToCore(&aws_iot_task, "aws_iot_task", 9216, NULL, 5, NULL, 1);
+    //xTaskCreatePinnedToCore(&aws_iot_task, "aws_iot_task", 9216, NULL, 5, NULL, 1);
+    xTaskCreate(&aws_iot_task, "aws_iot_task", 9216, NULL, 5, NULL);
 }
